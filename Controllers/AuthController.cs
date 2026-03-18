@@ -7,6 +7,7 @@ using System.IdentityModel.Tokens.Jwt;
 using BE_TRELLO.Entities.Auth;
 using System.Text;
 using Google.Apis.Auth;
+using System.Text.RegularExpressions;
 
 namespace BE_TRELLO.Controllers
 {
@@ -26,8 +27,11 @@ namespace BE_TRELLO.Controllers
         [HttpPost("login")]
         public IActionResult Login([FromBody] LoginRequest request)
         {
-            var user = _context.Users.FirstOrDefault(u => u.UserName == request.UserName && u.PasswordHash == request.Password);
-            if (user == null)
+
+
+            var user = _context.Users.FirstOrDefault(u => u.UserName == request.UserName);
+            bool isPasswordValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
+            if (user == null || !isPasswordValid)
             {
                 return Unauthorized(new { message = "Tên đăng nhập hoặc mật khẩu không đúng!" });
             }
@@ -36,9 +40,56 @@ namespace BE_TRELLO.Controllers
             var token = CreateToken(user);
 
             // 3. Trả về cho Swagger / React
-            return Ok(new { token = token, message = "Đăng nhập thành công!" });
+            return Ok(new
+            {
+                token = token,
+                userInfo = new
+                {
+                    id = user.UserId,
+                    name = user.UserName,
+                    email = user.Email,
+                },
+                message = "Đăng nhập thành công với userName, password!"
+            });
 
         }
+
+
+        [HttpPost("register")]
+        public async Task<IActionResult> Register([FromBody] RegisterRequest request)
+        {
+            // Kiểm tra xem Email đã tồn tại chưa... (bạn tự viết đoạn này nhé)
+
+            var user = _context.Users.FirstOrDefault(u => u.UserName == request.UserName);
+            if (user != null)
+            {
+                return BadRequest(new { message = "Tên đăng nhập đã tồn tại!" });
+            }
+
+            // Check password
+            if (!Regex.IsMatch(request.Password, @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)"))
+            {
+                return BadRequest(new { message = "Mật khẩu phải chứa ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường, số!" });
+            }
+
+            // 🎯 ĐÂY LÀ PHÉP THUẬT CỦA BCRYPT: Băm mật khẩu
+            // Ví dụ user gõ "123456", biến này sẽ biến thành chuỗi: "$2a$11$Kk3/..."
+            var hashedPassword = BCrypt.Net.BCrypt.HashPassword(request.Password);
+
+            var newUser = new Users
+            {
+                UserName = request.UserName,
+                Email = request.Email,
+                PasswordHash = hashedPassword, // Lưu chuỗi loằng ngoằng này vào Database!
+                GoogleId = null // Đăng ký tay thì không có GoogleId
+            };
+
+            _context.Users.Add(newUser);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Đăng ký thành công!" });
+        }
+
 
         [HttpGet("my-profile")]
         [Authorize] // Ổ khóa bắt buộc phải có Token mới được gọi API này
@@ -90,6 +141,7 @@ namespace BE_TRELLO.Controllers
                         // Tùy theo các cột trong DB của bạn mà điều chỉnh nhé
                         UserName = payload.Name, // Lấy luôn tên Google làm tên hiển thị
                         Email = payload.Email,
+                        GoogleId = payload.Subject,
                         PasswordHash = "", // Đăng nhập Google thì mật khẩu để trống
                     };
 
@@ -104,6 +156,12 @@ namespace BE_TRELLO.Controllers
                 return Ok(new
                 {
                     token = token,
+                    userInfo = new
+                    {
+                        id = user.UserId,
+                        name = user.UserName,
+                        email = user.Email,
+                    },
                     message = "Đăng nhập bằng Google thành công!"
                 });
             }
@@ -124,9 +182,6 @@ namespace BE_TRELLO.Controllers
                 return StatusCode(500, new { message = "Lỗi Server: " + ex.Message });
             }
         }
-
-        // Class phụ để hứng dữ liệu từ React (bạn viết nó nằm ngoài AuthController, hoặc ở cuối file)
-
 
         private string CreateToken(Users user)
         {
@@ -149,10 +204,19 @@ namespace BE_TRELLO.Controllers
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
+
+        // Class phụ để hứng dữ liệu từ React (bạn viết nó nằm ngoài AuthController, hoặc ở cuối file)
         public class LoginRequest
         {
             public string UserName { get; set; } = string.Empty;
             public string Password { get; set; } = string.Empty;
+        }
+
+        public class RegisterRequest
+        {
+            public string UserName { get; set; } = string.Empty;
+            public string Password { get; set; } = string.Empty;
+            public string Email { get; set; } = string.Empty;
         }
 
         public class GoogleLoginRequest
