@@ -1,49 +1,40 @@
-using Microsoft.AspNetCore.Mvc;
-using BE_TRELLO.Data;
-using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 
-namespace BE_TRELLO.Controllers
+using BE_TRELLO.Data;
+
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace BE_TRELLO.Controllers;
+
+
+[Route("api/[controller]")]
+[ApiController]
+internal class UserController(ApplicationDbContext context, IConfiguration config) : ControllerBase
 {
+    private readonly ApplicationDbContext _context = context;
+    private readonly IConfiguration _config = config;
 
-    [Route("api/[controller]")]
-    [ApiController]
-    class UserController : ControllerBase
+    [HttpGet("profile")]
+    [Authorize]
+    public async Task<IActionResult> GetProfile()
     {
-        private readonly ApplicationDbContext _context;
-        private readonly IConfiguration _config;
-
-        public UserController(ApplicationDbContext context, IConfiguration config)
+        string? userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null)
         {
-            _context = context;
-            _config = config;
+            return Unauthorized();
         }
 
-
-        [HttpGet("profile")]
-        [Authorize]
-        public async Task<IActionResult> GetProfile()
-        {
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (userId == null)
-            {
-                return Unauthorized();
-            }
-
-            var user = await _context.Users.FindAsync(userId);
-            if (user == null)
-            {
-                return NotFound();
-            }
-
-            return Ok(new
+        Entities.Auth.Users? user = await _context.Users.FindAsync(userId);
+        return user == null
+            ? NotFound()
+            : Ok(new
             {
                 user.UserId,
                 user.UserName,
                 user.Email,
                 user.GoogleId
             });
-        }
-
     }
+
 }
