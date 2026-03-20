@@ -8,6 +8,8 @@ using BE_TRELLO.Entities.Auth;
 using System.Text;
 using Google.Apis.Auth;
 using System.Text.RegularExpressions;
+using System.Security.Cryptography; // Thêm thư viện này lên đầu file
+
 
 namespace BE_TRELLO.Controllers
 {
@@ -37,12 +39,18 @@ namespace BE_TRELLO.Controllers
             }
 
             // 2. Chế tạo Token
-            var token = CreateToken(user);
+            var accessToken = CreateToken(user);
+            var refreshToken = GenerateRefreshToken();
+
+            user.RefreshToken = refreshToken;
+            user.RefreshTokenExpiryTime = DateTime.Now.AddDays(7);
+            _context.SaveChanges();
 
             // 3. Trả về cho Swagger / React
             return Ok(new
             {
-                token = token,
+                accessToken = accessToken,
+                refreshToken = refreshToken,
                 userInfo = new
                 {
                     id = user.UserId,
@@ -91,6 +99,34 @@ namespace BE_TRELLO.Controllers
         }
 
 
+        [HttpPost("refresh-token")]
+        public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
+        {
+            var user = _context.Users.FirstOrDefault(u => u.RefreshToken == request.RefreshToken);
+
+            if (user == null || user.RefreshTokenExpiryTime <= DateTime.Now)
+            {
+                return Unauthorized(new { message = "Refresh Token không hợp lệ hoặc đã hết hạn!" });
+            }
+
+            // Tạo Token mới
+            var newAccessToken = CreateToken(user);
+            var newRefreshToken = GenerateRefreshToken();
+
+            // Cập nhật vào DB
+            user.RefreshToken = newRefreshToken;
+            user.RefreshTokenExpiryTime = DateTime.Now.AddDays(7);
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                accessToken = newAccessToken,
+                refreshToken = newRefreshToken,
+                message = "Token đã được làm mới thành công!"
+            });
+        }
+
+
         [HttpGet("my-profile")]
         [Authorize] // Ổ khóa bắt buộc phải có Token mới được gọi API này
         public IActionResult GetMyProfile()
@@ -98,11 +134,15 @@ namespace BE_TRELLO.Controllers
             // Lấy thông tin User đang đăng nhập từ Token
             // (ClaimTypes.NameIdentifier chính là UserId mà ta đã nhét vào thẻ lúc nãy)
             var userName = User.FindFirstValue(ClaimTypes.Name);
+            var email = User.FindFirstValue(ClaimTypes.Email);
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
             return Ok(new
             {
                 Message = "Bạn đã lọt qua được trạm kiểm soát bảo mật!",
-                UserName = userName
+                UserName = userName,
+                Email = email,
+                UserId = userId
             });
         }
 
@@ -150,12 +190,12 @@ namespace BE_TRELLO.Controllers
                 }
 
                 // 5. Cấp thẻ VIP (JWT) của riêng hệ thống cho người dùng này
-                var token = CreateToken(user);
+                var accessToken = CreateToken(user);
 
                 // 6. Trả về cho React
                 return Ok(new
                 {
-                    token = token,
+                    accessToken = accessToken,
                     userInfo = new
                     {
                         id = user.UserId,
@@ -187,13 +227,15 @@ namespace BE_TRELLO.Controllers
         {
             var claims = new List<Claim>
             {
+                new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
                 new Claim(ClaimTypes.Name, user.UserName),
+                new Claim(ClaimTypes.Email, user.Email),
             };
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-            var token = new JwtSecurityToken(
+            var accessToken = new JwtSecurityToken(
                 issuer: _config["Jwt:Issuer"],
                 audience: _config["Jwt:Audience"],
                 claims: claims,
@@ -201,7 +243,7 @@ namespace BE_TRELLO.Controllers
                 signingCredentials: creds
             );
 
-            return new JwtSecurityTokenHandler().WriteToken(token);
+            return new JwtSecurityTokenHandler().WriteToken(accessToken);
         }
 
 
@@ -222,6 +264,23 @@ namespace BE_TRELLO.Controllers
         public class GoogleLoginRequest
         {
             public string IdToken { get; set; } = string.Empty;
+        }
+
+
+        public class RefreshTokenRequest
+        {
+            public string RefreshToken { get; set; }
+        }
+
+
+        private string GenerateRefreshToken()
+        {
+            var randomNumber = new byte[32];
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(randomNumber);
+                return Convert.ToBase64String(randomNumber);
+            }
         }
     }
 
