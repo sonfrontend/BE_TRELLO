@@ -22,6 +22,7 @@ insert_final_newline = false
 
 #### .NET Coding Conventions ####
 [*.{cs,vb}]
+generated_code = true
 
 # Organize usings
 dotnet_separate_import_directive_groups = true
@@ -376,8 +377,3 @@ dotnet_naming_style.s_camelcase.required_suffix =
 dotnet_naming_style.s_camelcase.word_separator = 
 dotnet_naming_style.s_camelcase.capitalization = camel_case
 
-# Cảnh báo và xóa các dòng using (thư viện) không dùng đến
-dotnet_diagnostic.IDE0005.severity = warning
-
-# Ép buộc chuẩn format khoảng cách, dấu ngoặc nhọn của Microsoft
-dotnet_analyzer_diagnostic.category-Style.severity = warning

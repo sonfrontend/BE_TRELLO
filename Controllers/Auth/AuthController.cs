@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 
 using BE_ECOMMERCE.Data; // Thay bằng namespace AppDbContext của bạn
+using BE_ECOMMERCE.DTOs.Auths;
 using BE_ECOMMERCE.Entities.Auth;
 
 using Google.Apis.Auth;
@@ -64,8 +65,12 @@ public class AuthController(ApplicationDbContext context, IConfiguration config)
             userInfo = new
             {
                 id = user.UserId,
-                name = user.UserName,
+                userName = user.UserName,
                 email = user.Email,
+                fullName = user.FullName,
+                avatarUrl = user.AvatarUrl,
+                googleId = user.GoogleId,
+                phoneNumber = user.PhoneNumber,
             },
             message = "Đăng nhập thành công với userName, password!"
         });
@@ -76,12 +81,6 @@ public class AuthController(ApplicationDbContext context, IConfiguration config)
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
-        // Kiểm tra xem Email đã tồn tại chưa
-        bool isEmailExist = _context.Users.Any(u => u.Email == request.Email);
-        if (isEmailExist)
-        {
-            return BadRequest(new { message = "Email này đã được sử dụng!" });
-        }
 
         User? user = _context.Users.FirstOrDefault(u => u.UserName == request.UserName);
         if (user != null)
@@ -89,10 +88,17 @@ public class AuthController(ApplicationDbContext context, IConfiguration config)
             return BadRequest(new { message = "Tên đăng nhập đã tồn tại!" });
         }
 
+        // Kiểm tra xem Email đã tồn tại chưa
+        bool isEmailExist = _context.Users.Any(u => u.Email == request.Email);
+        if (isEmailExist)
+        {
+            return BadRequest(new { message = "Email này đã được sử dụng!" });
+        }
+
         // Check password
         if (!Regex.IsMatch(request.Password, @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)"))
         {
-            return BadRequest(new { message = "Mật khẩu phải chứa ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường, số!" });
+            return BadRequest(new { message = "Mật khẩu phải bao gồm chữ hoa, chữ thường, số!" });
         }
 
         // 🎯 ĐÂY LÀ PHÉP THUẬT CỦA BCRYPT: Băm mật khẩu
@@ -101,6 +107,7 @@ public class AuthController(ApplicationDbContext context, IConfiguration config)
 
         User newUser = new()
         {
+            UserId = Guid.NewGuid(), // Tự sinh ID ngay ở code
             UserName = request.UserName,
             Email = request.Email,
             PasswordHash = hashedPassword, // Lưu chuỗi loằng ngoằng này vào Database!
@@ -142,26 +149,6 @@ public class AuthController(ApplicationDbContext context, IConfiguration config)
     }
 
 
-    [HttpGet("my-profile")]
-    [Authorize] // Ổ khóa bắt buộc phải có Token mới được gọi API này
-    public IActionResult GetMyProfile()
-    {
-        // Lấy thông tin User đang đăng nhập từ Token
-        // (ClaimTypes.NameIdentifier chính là UserId mà ta đã nhét vào thẻ lúc nãy)
-        string? userName = User.FindFirstValue(ClaimTypes.Name);
-        string? email = User.FindFirstValue(ClaimTypes.Email);
-        string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-        return Ok(new
-        {
-            Message = "Bạn đã lọt qua được trạm kiểm soát bảo mật!",
-            UserName = userName,
-            Email = email,
-            UserId = userId
-        });
-    }
-
-
     [AllowAnonymous]
     [HttpPost("google-login")]
     public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest request)
@@ -188,44 +175,65 @@ public class AuthController(ApplicationDbContext context, IConfiguration config)
             // 3. Nếu hàng chuẩn, móc Email ra và tìm xem người này từng vào hệ thống chưa
             User? user = _context.Users.FirstOrDefault(u => u.Email == payload.Email);
 
+            string newRefreshToken = GenerateRefreshToken();
+
             // 4. CHƯA CÓ TÀI KHOẢN? -> Tự động đăng ký luôn không cần hỏi!
             if (user == null)
             {
+                Guid userId = Guid.NewGuid();
                 user = new User // (Tên class model Users của bạn)
                 {
-                    // Tùy theo các cột trong DB của bạn mà điều chỉnh nhé
-                    UserName = payload.Name, // Lấy luôn tên Google làm tên hiển thị
+                    UserId = userId, // Tự sinh ID ngay ở code
+                    FullName = payload.Name, // Lấy luôn tên Google làm tên hiển thị
                     Email = payload.Email,
                     GoogleId = payload.Subject,
                     PasswordHash = "", // Đăng nhập Google thì mật khẩu để trống
                 };
 
+                string accessToken = CreateToken(user);
                 _ = _context.Users.Add(user);
+                user.RefreshToken = newRefreshToken;
+                user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
                 _ = await _context.SaveChangesAsync();
-            }
 
-            // 5. Cấp thẻ VIP (JWT) của riêng hệ thống cho người dùng này
-            string accessToken = CreateToken(user);
-            string newRefreshToken = GenerateRefreshToken();
-
-            // Cập nhật vào DB
-            user.RefreshToken = newRefreshToken;
-            user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
-            _ = await _context.SaveChangesAsync();
-
-            // 6. Trả về cho React
-            return Ok(new
-            {
-                accessToken,
-                refreshToken = newRefreshToken,
-                userInfo = new
+                return Ok(new
                 {
-                    id = user.UserId,
-                    name = user.UserName,
-                    email = user.Email,
-                },
-                message = "Đăng nhập bằng Google thành công!"
-            });
+                    accessToken,
+                    refreshToken = newRefreshToken,
+                    userInfo = new
+                    {
+                        id = userId,
+                        fullName = payload.Name,
+                        email = payload.Email,
+                        googleId = payload.Subject,
+                    },
+                    message = "Đăng nhập bằng Google thành công!"
+                });
+            }
+            else
+            {
+
+                string accessToken = CreateToken(user);
+                user.RefreshToken = newRefreshToken;
+                user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
+                _ = await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    accessToken,
+                    refreshToken = newRefreshToken,
+                    userInfo = new
+                    {
+                        id = user.UserId,
+                        fullName = user.FullName,
+                        userName = user.UserName,
+                        email = user.Email,
+                        googleId = user.GoogleId,
+                        phoneNumber = user.PhoneNumber,
+                    },
+                    message = "Đăng nhập bằng Google thành công!"
+                });
+            }
         }
         catch (InvalidJwtException ex)
         {
@@ -270,29 +278,8 @@ public class AuthController(ApplicationDbContext context, IConfiguration config)
 
 
     // Class phụ để hứng dữ liệu từ React (bạn viết nó nằm ngoài AuthController, hoặc ở cuối file)
-    public class LoginRequest
-    {
-        public string UserName { get; set; } = string.Empty;
-        public string Password { get; set; } = string.Empty;
-    }
-
-    public class RegisterRequest
-    {
-        public string UserName { get; set; } = string.Empty;
-        public string Password { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
-    }
-
-    public class GoogleLoginRequest
-    {
-        public string IdToken { get; set; } = string.Empty;
-    }
 
 
-    public class RefreshTokenRequest
-    {
-        public string RefreshToken { get; set; }
-    }
 
 
     private string GenerateRefreshToken()

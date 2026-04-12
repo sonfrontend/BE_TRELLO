@@ -72,8 +72,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
            _ = entity.Property(u => u.RolePermissionId)
                .HasDefaultValueSql("NEWID()");
 
-           _ = entity.Property(u => u.RoleId).IsRequired(true);
-           _ = entity.Property(u => u.PermissionId).IsRequired(true);
+           _ = entity.Property(u => u.RoleId).HasMaxLength(200).IsRequired(true);
+           _ = entity.Property(u => u.PermissionId).HasMaxLength(200).IsRequired(true);
 
        });
 

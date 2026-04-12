@@ -1,8 +1,10 @@
 using System.Text;
+using System.Threading.RateLimiting;
 
 using BE_ECOMMERCE.Data;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -70,6 +72,23 @@ builder.Services.AddSwaggerGen(option =>
 });
 
 
+// 1. Thêm dịch vụ Rate Limiter
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("Giới_Hạn_Spam_Click", opt =>
+    {
+        opt.Window = TimeSpan.FromSeconds(10); // Khung thời gian 10 giây
+        opt.PermitLimit = 3; // Chỉ cho phép tối đa 3 request
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 0; // Vượt quá là chặn luôn, không xếp hàng
+    });
+
+    // Đổi status code trả về thành 429 (Too Many Requests) thay vì 503
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
+
+
+
 builder.Services.AddCors(options => options.AddPolicy("AllowReactApp", policy =>
         // SOI KỸ CHỖ NÀY:
         _ = policy.WithOrigins("http://localhost:" + builder.Configuration["PORT:FE"]) // <--- CHUẨN
@@ -86,6 +105,7 @@ if (app.Environment.IsDevelopment())
     _ = app.MapOpenApi();
     _ = app.UseSwagger();
     _ = app.UseSwaggerUI(); // Bật giao diện web của Swagger
+    _ = app.UseRateLimiter();
 }
 
 // app.UseHttpsRedirection();
