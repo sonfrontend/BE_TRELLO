@@ -50,7 +50,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
            _ = entity.Property(u => u.RoleId)
                .HasDefaultValueSql("NEWID()");
 
-           _ = entity.Property(u => u.RoleName).HasMaxLength(100).IsRequired(true);
+           _ = entity.Property(u => u.RoleName).HasMaxLength(200).IsRequired(true);
 
        });
 
@@ -62,6 +62,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                .HasDefaultValueSql("NEWID()");
 
            _ = entity.Property(u => u.PermissionName).HasMaxLength(200).IsRequired(true);
+           _ = entity.Property(u => u.Description).HasMaxLength(500).IsRequired(true);
 
        });
 
@@ -72,8 +73,21 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
            _ = entity.Property(u => u.RolePermissionId)
                .HasDefaultValueSql("NEWID()");
 
-           _ = entity.Property(u => u.RoleId).HasMaxLength(200).IsRequired(true);
-           _ = entity.Property(u => u.PermissionId).HasMaxLength(200).IsRequired(true);
+           _ = entity.Property(e => e.RoleId).IsRequired(true);
+           _ = entity.Property(e => e.PermissionId).IsRequired(true);
+
+
+
+           entity.HasOne(rp => rp.Role)
+          .WithMany(r => r.RolePermissions) // Nối tới ICollection<RolePermission> trong class Role
+          .HasForeignKey(rp => rp.RoleId);
+
+           entity.HasOne(rp => rp.Permission)
+          .WithMany(r => r.RolePermissions) // Nối tới ICollection<RolePermission> trong class Role
+          .HasForeignKey(rp => rp.PermissionId);
+           // Chống trùng key
+           entity.HasIndex(rp => new { rp.RoleId, rp.PermissionId })
+         .IsUnique();
 
        });
 

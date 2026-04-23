@@ -7,5 +7,5 @@ public class Permission : BaseEntity
     public string PermissionName { get; set; }
     public string Description { get; set; }
 
-
+    public virtual ICollection<RolePermission> RolePermissions { get; set; }
 }

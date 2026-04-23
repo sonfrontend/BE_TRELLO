@@ -1,6 +1,7 @@
 using System.Text;
 using System.Threading.RateLimiting;
 
+using BE_ECOMMERCE.Constants;
 using BE_ECOMMERCE.Data;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -38,6 +39,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     ValidIssuer = jwtIssuer,
     ValidAudience = jwtAudience,
     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey ?? throw new InvalidOperationException("Jwt:Key is missing!")))
+});
+
+builder.Services.AddAuthorization(options =>
+{
+    // Duyệt trực tiếp qua mảng (Không dùng Reflection)
+    foreach (var permission in AppPermissions.All)
+    {
+        options.AddPolicy(permission, policy =>
+            policy.RequireClaim("Permission", permission));
+    }
 });
 
 
@@ -98,6 +109,9 @@ builder.Services.AddCors(options => options.AddPolicy("AllowReactApp", policy =>
 
 
 WebApplication app = builder.Build();
+
+// [THÊM ĐOẠN NÀY] - Khởi chạy cỗ máy đồng bộ tự động
+await DbSeeder.AutoSyncPermissions(app.Services);
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
