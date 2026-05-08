@@ -47,6 +47,33 @@ public class UserController(ApplicationDbContext context, IConfiguration config)
         return Ok(userRoles);
     }
 
+    [HttpPost("userRole")]
+    [Authorize]
+    public async Task<IActionResult> CreateUserRole([FromBody] Entities.Auth.UserRole request)
+    {
+        var exists = await _context.UserRoles.AnyAsync(ur => ur.UserId == request.UserId && ur.RoleId == request.RoleId);
+        if (exists)
+            return BadRequest(new { message = "Dữ liệu này đã tồn tại!" });
+
+        request.UserRoleId = Guid.NewGuid();
+        _context.UserRoles.Add(request);
+        await _context.SaveChangesAsync();
+        return Ok(new { message = "Thêm dữ liệu thành công!", userRole = request });
+    }
+
+    [HttpDelete("userRole/{id}")]
+    [Authorize]
+    public async Task<IActionResult> DeleteUserRole(Guid id)
+    {
+        var userRole = await _context.UserRoles.FindAsync(id);
+        if (userRole == null)
+            return NotFound(new { message = "Không tìm thấy dữ liệu!" });
+
+        _context.UserRoles.Remove(userRole);
+        await _context.SaveChangesAsync();
+        return Ok(new { message = "Xóa dữ liệu thành công!" });
+    }
+
     [HttpGet("profile")]
     [Authorize]
     public async Task<IActionResult> GetProfile()

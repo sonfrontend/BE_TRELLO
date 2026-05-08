@@ -1,5 +1,6 @@
 using BE_ECOMMERCE.Data;
 using BE_ECOMMERCE.Entities.Auth;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -17,7 +18,7 @@ public class RoleController(ApplicationDbContext context) : ControllerBase
     public async Task<IActionResult> GetAllRoles()
     {
         var roles = await _context.Roles.ToListAsync();
-        return Ok(roles);
+        return Ok(new { status = 200, message = "Lấy dữ liệu thành công!", data = roles });
     }
 
     [HttpPost]
@@ -26,7 +27,7 @@ public class RoleController(ApplicationDbContext context) : ControllerBase
         request.RoleId = Guid.NewGuid();
         _context.Roles.Add(request);
         await _context.SaveChangesAsync();
-        return Ok(new { message = "Thêm dữ liệu thành công!", role = request });
+        return Ok(new { status = 200, message = "Thêm dữ liệu thành công!", role = request });
     }
 
     [HttpPut("{id}")]
