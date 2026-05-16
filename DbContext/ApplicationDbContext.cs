@@ -1,5 +1,8 @@
 
 using BE_ECOMMERCE.Entities.Auth;
+using BE_ECOMMERCE.Entities.Product;
+using BE_ECOMMERCE.Entities.Transaction;
+using BE_ECOMMERCE.Entities.Category;
 
 using Microsoft.EntityFrameworkCore;
 
@@ -13,6 +16,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Permission> Permissions { get; set; }
     public DbSet<RolePermission> RolePermissions { get; set; }
     public DbSet<UserRole> UserRoles { get; set; }
+    public DbSet<Product> Products { get; set; }
+    public DbSet<Transaction> Transactions { get; set; }
+    public DbSet<Category> Categories { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -112,5 +118,45 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
            entity.HasIndex(ur => new { ur.UserId, ur.RoleId })
          .IsUnique();
        });
+
+        _ = builder.Entity<Category>(entity =>
+        {
+            _ = entity.HasKey(c => c.Id);
+
+            _ = entity.HasOne(c => c.ParentCategory)
+                .WithMany(c => c.SubCategories)
+                .HasForeignKey(c => c.ParentId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        _ = builder.Entity<Product>(entity =>
+        {
+            _ = entity.HasKey(p => p.ArticleId);
+
+            _ = entity.Property(p => p.ArticleId).IsRequired(true);
+            _ = entity.Property(p => p.ProductCode).HasMaxLength(255).IsRequired(false);
+            _ = entity.Property(p => p.ProductName).HasMaxLength(255).IsRequired(false);
+            _ = entity.Property(p => p.Color).HasMaxLength(255).IsRequired(false);
+            _ = entity.Property(p => p.Size).HasMaxLength(255).IsRequired(false);
+            _ = entity.Property(p => p.Price).HasColumnType("decimal(18,2)");
+            _ = entity.Property(p => p.ImageUrl).HasMaxLength(500).IsRequired(false);
+            _ = entity.Property(p => p.Description).HasMaxLength(4000).IsRequired(false);
+
+            // Configure relationship with Category
+            _ = entity.HasOne(p => p.Categories)
+                .WithMany(c => c.Products)
+                .HasForeignKey(p => p.CategoryId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        _ = builder.Entity<Transaction>(entity =>
+        {
+            _ = entity.HasKey(t => t.Id);
+
+            _ = entity.HasOne<Product>()
+                .WithMany()
+                .HasForeignKey(t => t.ArticleId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 }

@@ -1,4 +1,4 @@
-namespace BE_ECOMMERCE.Entities.Auth;
+namespace BE_ECOMMERCE.Entities;
 
 public class BaseEntity
 {

@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 
 using BE_ECOMMERCE.Constants;
@@ -25,8 +26,10 @@ builder.Services.AddOpenApi();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-builder.Services.AddControllers();
-
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+});
 
 // Nạp cấu hình Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -130,6 +133,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+app.UseStaticFiles();
 
 // Ép app chạy ở cổng 5000
 app.Urls.Add("http://localhost:" + builder.Configuration["PORT:BE"]);
