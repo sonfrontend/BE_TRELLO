@@ -1,7 +1,7 @@
 namespace BE_ECOMMERCE.Constants
 {
     // static class: Không cần khởi tạo (new) vẫn gọi được
-    public static class AppPermissions
+    public static class PermissionConstant
     {
         // Nhóm User
         public const string ViewUser = "View_User";

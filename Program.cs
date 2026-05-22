@@ -14,9 +14,9 @@ using Microsoft.OpenApi.Models;
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 
-string? jwtKey = builder.Configuration["Jwt:Key"];
-string? jwtIssuer = builder.Configuration["Jwt:Issuer"];
-string? jwtAudience = builder.Configuration["Jwt:Audience"];
+string jwtKey = builder.Configuration["Jwt:Key"];
+string jwtIssuer = builder.Configuration["Jwt:Issuer"];
+string jwtAudience = builder.Configuration["Jwt:Audience"];
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -47,7 +47,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization(options =>
 {
     // Duyệt trực tiếp qua mảng (Không dùng Reflection)
-    foreach (var permission in AppPermissions.All)
+    foreach (var permission in PermissionConstant.All)
     {
         options.AddPolicy(permission, policy =>
             policy.RequireClaim("Permission", permission));

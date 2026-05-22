@@ -17,14 +17,15 @@ namespace BE_ECOMMERCE.Controllers;
 public class UserController(ApplicationDbContext context, IConfiguration config) : ControllerBase
 {
     private readonly ApplicationDbContext _context = context;
-    // private readonly IConfiguration _config = config;
+    private readonly IConfiguration _config = config;
 
     [HttpGet]
     [Authorize]
     public async Task<IActionResult> GetAllUsers()
     {
         var users = await _context.Users
-            .Select(u => new {
+            .Select(u => new
+            {
                 u.UserId,
                 u.UserName,
                 u.FullName
@@ -38,7 +39,8 @@ public class UserController(ApplicationDbContext context, IConfiguration config)
     public async Task<IActionResult> GetAllUserRoles()
     {
         var userRoles = await _context.UserRoles
-            .Select(ur => new {
+            .Select(ur => new
+            {
                 ur.UserRoleId,
                 ur.UserId,
                 ur.RoleId
@@ -78,13 +80,13 @@ public class UserController(ApplicationDbContext context, IConfiguration config)
     [Authorize]
     public async Task<IActionResult> GetProfile()
     {
-        string? userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        string userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userId == null)
         {
             return Unauthorized();
         }
 
-        Entities.Auth.User? user = await _context.Users.FindAsync(Guid.Parse(userId));
+        Entities.Auth.User user = await _context.Users.FindAsync(Guid.Parse(userId));
         return user == null
             ? NotFound()
             : Ok(new
@@ -101,13 +103,13 @@ public class UserController(ApplicationDbContext context, IConfiguration config)
     [EnableRateLimiting("Giới_Hạn_Spam_Click")]
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
     {
-        string? userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        string userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userId == null)
         {
             return Unauthorized();
         }
 
-        Entities.Auth.User? user = await _context.Users.FindAsync(Guid.Parse(userId));
+        Entities.Auth.User user = await _context.Users.FindAsync(Guid.Parse(userId));
         if (user == null)
         {
             return NotFound();

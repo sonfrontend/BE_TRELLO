@@ -12,13 +12,28 @@ public class ProductController(ApplicationDbContext context) : ControllerBase
     private readonly ApplicationDbContext _context = context;
 
     [HttpGet]
-    public async Task<IActionResult> GetProducts([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    public async Task<IActionResult> GetProducts(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string search = null)
     {
-
         try
         {
-            // 1. Kéo dữ liệu từ DB lên RAM
-            var rawProducts = await _context.Products.AsNoTracking().ToListAsync();
+            // 1. Khởi tạo câu lệnh truy vấn LINQ từ Database
+            var query = _context.Products.AsNoTracking().AsQueryable();
+
+            // Lọc dữ liệu theo từ khóa tìm kiếm (Text hoặc Voice đã dịch thành chữ)
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                string searchKeyword = search.Trim().ToLower();
+
+                // Lọc những sản phẩm có Tên hoặc Mô tả chứa từ khóa tìm kiếm
+                query = query.Where(p => p.ProductName.ToLower().Contains(searchKeyword)
+                                      || p.Description.ToLower().Contains(searchKeyword));
+            }
+
+            // Kéo dữ liệu đã lọc từ DB lên bộ nhớ RAM
+            var rawProducts = await query.ToListAsync();
 
             // 2. Gom nhóm theo ProductCode (Ví dụ: 0108775)
             var groupedData = rawProducts
@@ -34,7 +49,7 @@ public class ProductController(ApplicationDbContext context) : ControllerBase
                     return new
                     {
                         // --- THÔNG TIN CỦA SẢN PHẨM ĐẦU TIÊN ---
-                        ArticleId = defaultProduct.ArticleId, // Ví dụ: 0108775015-L
+                        ArticleId = defaultProduct.ArticleId,
                         ProductCode = defaultProduct.ProductCode,
                         CategoryId = defaultProduct.CategoryId,
                         ProductName = defaultProduct.ProductName,
@@ -57,7 +72,7 @@ public class ProductController(ApplicationDbContext context) : ControllerBase
                         }).OrderBy(v => v.Size).ToList()
                     };
                 })
-                .OrderByDescending(p => p.ArticleId) // Cũ nhất hoặc mới nhất tùy ý
+                .OrderByDescending(p => p.ArticleId)
                 .ToList();
 
             // 3. Xử lý phân trang
@@ -107,7 +122,7 @@ public class ProductController(ApplicationDbContext context) : ControllerBase
             var result = new
             {
                 // --- THÔNG TIN CỦA SẢN PHẨM ĐẦU TIÊN ---
-                ArticleId = defaultProduct.ArticleId, // Ví dụ: 0108775015-L
+                ArticleId = defaultProduct.ArticleId,
                 ProductCode = defaultProduct.ProductCode,
                 CategoryId = defaultProduct.CategoryId,
                 CategoryName = defaultProduct.Categories?.Name ?? "Danh mục chung",
@@ -116,8 +131,8 @@ public class ProductController(ApplicationDbContext context) : ControllerBase
                 Price = defaultProduct.Price,
                 ImageUrl = defaultProduct.ImageUrl,
                 Description = defaultProduct.Description,
-                Size = defaultProduct.Size,     // Hiện rõ Size của cái đại diện
-                Color = defaultProduct.Color,   // Hiện rõ Màu của cái đại diện
+                Size = defaultProduct.Size,
+                Color = defaultProduct.Color,
                 StockQuantity = defaultProduct.StockQuantity,
 
                 // --- MẢNG CHỨA CÁC SẢN PHẨM LIÊN QUAN CÒN LẠI ---
@@ -140,4 +155,74 @@ public class ProductController(ApplicationDbContext context) : ControllerBase
         }
     }
 
+    [HttpGet("parent-category/{parentId}")]
+    public async Task<IActionResult> GetProductsByParentCategory(
+        int parentId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        try
+        {
+            var query = _context.Products
+                .Include(p => p.Categories)
+                .Where(p => p.Categories != null && p.Categories.ParentId == parentId)
+                .AsNoTracking();
+
+            var rawProducts = await query.ToListAsync();
+
+            var groupedData = rawProducts
+                .GroupBy(p => p.ProductCode)
+                .Select(g =>
+                {
+                    var defaultProduct = g.FirstOrDefault();
+                    var otherVariants = g.Where(p => p.ArticleId != defaultProduct.ArticleId).ToList();
+
+                    return new
+                    {
+                        ArticleId = defaultProduct.ArticleId,
+                        ProductCode = defaultProduct.ProductCode,
+                        CategoryId = defaultProduct.CategoryId,
+                        ProductName = defaultProduct.ProductName,
+                        Price = defaultProduct.Price,
+                        ImageUrl = defaultProduct.ImageUrl,
+                        Description = defaultProduct.Description,
+                        Size = defaultProduct.Size,
+                        Color = defaultProduct.Color,
+                        StockQuantity = defaultProduct.StockQuantity,
+
+                        Products = otherVariants.Select(v => new
+                        {
+                            ArticleId = v.ArticleId,
+                            Size = v.Size,
+                            Color = v.Color,
+                            StockQuantity = v.StockQuantity,
+                            Price = v.Price,
+                            ImageUrl = v.ImageUrl
+                        }).OrderBy(v => v.Size).ToList()
+                    };
+                })
+                .OrderByDescending(p => p.ArticleId)
+                .ToList();
+
+            var totalCount = groupedData.Count;
+            var pagedProducts = groupedData
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            var hasMore = (page * pageSize) < totalCount;
+
+            return Ok(new
+            {
+                data = pagedProducts,
+                hasMore = hasMore,
+                nextPage = hasMore ? page + 1 : (int?)null,
+                totalCount = totalCount
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Lỗi hệ thống: {ex.Message}");
+        }
+    }
 }

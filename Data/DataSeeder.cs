@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using BE_ECOMMERCE.Constants; // Gọi mảng Hằng số của bạn vào
 using BE_ECOMMERCE.Entities.Auth; // Gọi class Permission vào
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BE_ECOMMERCE.Data
 {
@@ -21,12 +22,12 @@ namespace BE_ECOMMERCE.Data
             bool isChanged = false; // Cờ đánh dấu xem có cần lưu DB không
 
             // 2. Vòng lặp duyệt qua mảng tĩnh trong code của bạn
-            foreach (var permName in AppPermissions.All)
+            foreach (var permName in PermissionConstant.All)
             {
                 // Nếu Quyền trong code CHƯA TỒN TẠI trong Database -> Tạo mới
                 if (!existingPermissions.Contains(permName))
                 {
-                    var newPermission = new Permission
+                    var newPermission = new BE_ECOMMERCE.Entities.Auth.Permission
                     {
                         // Lúc này dùng NewGuid() thoải mái vì ta chèn thực tế, không qua Migration
                         PermissionId = Guid.NewGuid(),

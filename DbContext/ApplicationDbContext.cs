@@ -3,6 +3,8 @@ using BE_ECOMMERCE.Entities.Auth;
 using BE_ECOMMERCE.Entities.Product;
 using BE_ECOMMERCE.Entities.Transaction;
 using BE_ECOMMERCE.Entities.Category;
+using BE_ECOMMERCE.Entities.Cart;
+using BE_ECOMMERCE.Entities.Order;
 
 using Microsoft.EntityFrameworkCore;
 
@@ -19,6 +21,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Product> Products { get; set; }
     public DbSet<Transaction> Transactions { get; set; }
     public DbSet<Category> Categories { get; set; }
+    public DbSet<CartItem> CartItems { get; set; }
+    public DbSet<Order> Orders { get; set; }
+    public DbSet<OrderItem> OrderItems { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -157,6 +162,44 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .WithMany()
                 .HasForeignKey(t => t.ArticleId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        _ = builder.Entity<CartItem>(entity =>
+        {
+            _ = entity.HasKey(c => c.Id);
+
+            _ = entity.HasOne(c => c.User)
+                .WithMany()
+                .HasForeignKey(c => c.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            _ = entity.HasOne(c => c.Product)
+                .WithMany()
+                .HasForeignKey(c => c.ArticleId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        _ = builder.Entity<Order>(entity =>
+        {
+            _ = entity.HasKey(o => o.Id);
+            _ = entity.HasOne(o => o.User)
+                .WithMany()
+                .HasForeignKey(o => o.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        _ = builder.Entity<OrderItem>(entity =>
+        {
+            _ = entity.HasKey(o => o.Id);
+            _ = entity.HasOne(o => o.Order)
+                .WithMany(o => o.OrderItems)
+                .HasForeignKey(o => o.OrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            _ = entity.HasOne(o => o.Product)
+                .WithMany()
+                .HasForeignKey(o => o.ArticleId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

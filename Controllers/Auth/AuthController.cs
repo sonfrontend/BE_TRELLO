@@ -16,6 +16,7 @@ using Microsoft.IdentityModel.Tokens;
 
 
 namespace BE_ECOMMERCE.Controllers;
+
 [Route("api/[controller]")]
 [ApiController]
 public class AuthController(ApplicationDbContext context, IConfiguration config) : ControllerBase
@@ -29,7 +30,7 @@ public class AuthController(ApplicationDbContext context, IConfiguration config)
 
 
         bool isPasswordValid = false;
-        User? user = _context.Users.FirstOrDefault(u => u.UserName == request.UserName);
+        User user = _context.Users.FirstOrDefault(u => u.UserName == request.UserName);
         if (user == null)
         {
             return Unauthorized(new { message = "Tên đăng nhập hoặc mật khẩu không đúng!" });
@@ -81,7 +82,7 @@ public class AuthController(ApplicationDbContext context, IConfiguration config)
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
 
-        User? user = _context.Users.FirstOrDefault(u => u.UserName == request.UserName);
+        User user = _context.Users.FirstOrDefault(u => u.UserName == request.UserName);
         if (user != null)
         {
             return BadRequest(new { message = "Tên đăng nhập đã tồn tại!" });
@@ -123,7 +124,7 @@ public class AuthController(ApplicationDbContext context, IConfiguration config)
     [HttpPost("refresh-token")]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
     {
-        User? user = _context.Users.FirstOrDefault(u => u.RefreshToken == request.RefreshToken);
+        User user = _context.Users.FirstOrDefault(u => u.RefreshToken == request.RefreshToken);
 
         if (user == null || user.RefreshTokenExpiryTime <= DateTime.UtcNow)
         {
@@ -155,7 +156,7 @@ public class AuthController(ApplicationDbContext context, IConfiguration config)
         try
         {
             // 1. Lấy Google Client ID từ appsettings.json ra để làm mốc đối chiếu
-            string? clientId = _config["Google:ClientId"];
+            string clientId = _config["Google:ClientId"];
 
             if (string.IsNullOrEmpty(clientId))
             {
@@ -172,7 +173,7 @@ public class AuthController(ApplicationDbContext context, IConfiguration config)
             GoogleJsonWebSignature.Payload payload = await GoogleJsonWebSignature.ValidateAsync(request.IdToken, settings);
 
             // 3. Nếu hàng chuẩn, móc Email ra và tìm xem người này từng vào hệ thống chưa
-            User? user = _context.Users.FirstOrDefault(u => u.Email == payload.Email);
+            User user = _context.Users.FirstOrDefault(u => u.Email == payload.Email);
 
             string newRefreshToken = GenerateRefreshToken();
 
